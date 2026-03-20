@@ -10,6 +10,9 @@ id = "context-engine"
 file = "astrid_capsule_context_engine.wasm"
 type = "executable"
 
+[dependencies]
+provides = ["rfc:context-engine.v1"]
+
 [capabilities]
 ipc_publish = [
     "context_engine.v1.response.*",
