@@ -11,9 +11,7 @@ fn make_msg(id: &str, content: &str) -> serde_json::Value {
 }
 
 /// Helper to build an `ipc::PollResult` from a list of (topic, payload_value) pairs.
-fn make_poll_result(
-    messages: Vec<(&str, serde_json::Value)>,
-) -> ipc::PollResult {
+fn make_poll_result(messages: Vec<(&str, serde_json::Value)>) -> ipc::PollResult {
     ipc::PollResult {
         messages: messages
             .into_iter()
@@ -334,10 +332,7 @@ fn parse_hook_responses_ignores_unrelated_payload() {
 fn parse_hook_responses_mixed_valid_and_invalid() {
     let result = make_poll_result(vec![
         ("hook", serde_json::json!({"status": "irrelevant"})),
-        (
-            "hook",
-            serde_json::json!({"pinnedMessageIds": ["msg-1"]}),
-        ),
+        ("hook", serde_json::json!({"pinnedMessageIds": ["msg-1"]})),
     ]);
     let responses = parse_hook_responses(&result);
     assert_eq!(responses.len(), 1);

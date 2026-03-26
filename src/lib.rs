@@ -260,9 +260,7 @@ fn dispatch_poll_result(result: &ipc::PollResult, config: &Config) {
         let payload: serde_json::Value = match serde_json::from_str(&msg.payload) {
             Ok(v) => v,
             Err(e) => {
-                log::warn(format!(
-                    "failed to deserialize IPC message payload: {e}"
-                ));
+                log::warn(format!("failed to deserialize IPC message payload: {e}"));
                 continue;
             }
         };
@@ -424,9 +422,7 @@ fn fire_before_compaction(
     let sub = match ipc::subscribe(&response_topic) {
         Ok(h) => h,
         Err(e) => {
-            log::error(format!(
-                "Failed to subscribe to hook response topic: {e}"
-            ));
+            log::error(format!("Failed to subscribe to hook response topic: {e}"));
             return MergedBeforeCompaction {
                 skip: false,
                 protected_ids: HashSet::new(),
@@ -470,11 +466,7 @@ fn fire_before_compaction(
 
         match ipc::recv(&sub, timeout) {
             Ok(result) => {
-                let new_responses = parse_hook_responses(&result);
-                if new_responses.is_empty() {
-                    break;
-                }
-                responses.extend(new_responses);
+                responses.extend(parse_hook_responses(&result));
             }
             _ => break,
         }
