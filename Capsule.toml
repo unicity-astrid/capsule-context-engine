@@ -15,18 +15,22 @@ context = "1.0.0"
 
 [[topic]]
 name = "context_engine.v1.response.compact"
+direction = "publish"
 description = "Compacted messages and stats"
 
 [[topic]]
 name = "context_engine.v1.response.estimate_tokens"
+direction = "publish"
 description = "Estimated token count"
 
 [[topic]]
 name = "context_engine.v1.hook.before_compaction"
+direction = "publish"
 description = "Interceptor hook: plugins can mark messages as protected or skip compaction"
 
 [[topic]]
 name = "context_engine.v1.hook.after_compaction"
+direction = "publish"
 description = "Fire-and-forget notification with compaction stats"
 
 [capabilities]
