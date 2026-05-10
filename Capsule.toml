@@ -14,14 +14,14 @@ type = "executable"
 "astrid:context" = "1.0.0"
 
 [publish]
-"context_engine.v1.response.*" = { wit = "TODO" }
-"context_engine.v1.hook.before_compaction" = { wit = "TODO" }
-"context_engine.v1.hook.after_compaction" = { wit = "TODO" }
+"context_engine.v1.response.*" = { wit = "TODO" }   # wildcard covers both compact-response and estimate-response — heterogeneous payloads, no single canonical type
+"context_engine.v1.hook.before_compaction" = { wit = "@unicity-astrid/wit/context/before-compaction-hook" }
+"context_engine.v1.hook.after_compaction" = { wit = "@unicity-astrid/wit/context/after-compaction-event" }
 
 [subscribe]
 # 3-segment wildcard (covers context_engine.v1.{any_single_segment})
-"context_engine.v1.*" = { wit = "TODO" }
+"context_engine.v1.*" = { wit = "TODO" }   # wildcard covers compact-request and estimate-request — heterogeneous payloads, no single canonical type
 # 4-segment exact (topic_matches requires equal segment count)
-"context_engine.v1.hook.before_compaction" = { wit = "TODO" }
-"context_engine.v1.hook.after_compaction" = { wit = "TODO" }
-"context_engine.v1.hook_response.*" = { wit = "TODO" }
+"context_engine.v1.hook.before_compaction" = { wit = "@unicity-astrid/wit/context/before-compaction-hook" }
+"context_engine.v1.hook.after_compaction" = { wit = "@unicity-astrid/wit/context/after-compaction-event" }
+"context_engine.v1.hook_response.*" = { wit = "@unicity-astrid/wit/context/before-compaction-hook-response" }
