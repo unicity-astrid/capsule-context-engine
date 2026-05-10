@@ -10,36 +10,18 @@ id = "context-engine"
 file = "astrid_capsule_context_engine.wasm"
 type = "executable"
 
-[exports.astrid]
-context = "1.0.0"
+[exports]
+"astrid:context" = "1.0.0"
 
-[[topic]]
-name = "context_engine.v1.response.compact"
-description = "Compacted messages and stats"
+[publish]
+"context_engine.v1.response.*" = { wit = "TODO" }
+"context_engine.v1.hook.before_compaction" = { wit = "TODO" }
+"context_engine.v1.hook.after_compaction" = { wit = "TODO" }
 
-[[topic]]
-name = "context_engine.v1.response.estimate_tokens"
-description = "Estimated token count"
-
-[[topic]]
-name = "context_engine.v1.hook.before_compaction"
-description = "Interceptor hook: plugins can mark messages as protected or skip compaction"
-
-[[topic]]
-name = "context_engine.v1.hook.after_compaction"
-description = "Fire-and-forget notification with compaction stats"
-
-[capabilities]
-ipc_publish = [
-    "context_engine.v1.response.*",
-    "context_engine.v1.hook.before_compaction",
-    "context_engine.v1.hook.after_compaction",
-]
-ipc_subscribe = [
-    # 3-segment wildcard (covers context_engine.v1.{any_single_segment})
-    "context_engine.v1.*",
-    # 4-segment exact (topic_matches requires equal segment count)
-    "context_engine.v1.hook.before_compaction",
-    "context_engine.v1.hook.after_compaction",
-    "context_engine.v1.hook_response.*",
-]
+[subscribe]
+# 3-segment wildcard (covers context_engine.v1.{any_single_segment})
+"context_engine.v1.*" = { wit = "TODO" }
+# 4-segment exact (topic_matches requires equal segment count)
+"context_engine.v1.hook.before_compaction" = { wit = "TODO" }
+"context_engine.v1.hook.after_compaction" = { wit = "TODO" }
+"context_engine.v1.hook_response.*" = { wit = "TODO" }
