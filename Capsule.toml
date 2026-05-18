@@ -14,14 +14,24 @@ type = "executable"
 "astrid:context" = "1.0.0"
 
 [publish]
-"context_engine.v1.response.*" = { wit = "TODO" }   # wildcard covers both compact-response and estimate-response — heterogeneous payloads, no single canonical type
+# Compacted messages and stats.
+"context_engine.v1.response.compact" = { wit = "@unicity-astrid/wit/context/compact-response" }
+# Estimated token count.
+"context_engine.v1.response.estimate_tokens" = { wit = "@unicity-astrid/wit/context/estimate-response" }
+# Interceptor hook: plugins can mark messages as protected or skip compaction.
 "context_engine.v1.hook.before_compaction" = { wit = "@unicity-astrid/wit/context/before-compaction-hook" }
+# Fire-and-forget notification with compaction stats.
 "context_engine.v1.hook.after_compaction" = { wit = "@unicity-astrid/wit/context/after-compaction-event" }
 
 [subscribe]
-# 3-segment wildcard (covers context_engine.v1.{any_single_segment})
-"context_engine.v1.*" = { wit = "TODO" }   # wildcard covers compact-request and estimate-request — heterogeneous payloads, no single canonical type
-# 4-segment exact (topic_matches requires equal segment count)
+# Compact a session's messages within a token budget.
+"context_engine.v1.compact" = { wit = "@unicity-astrid/wit/context/compact-request" }
+# Estimate token count for a list of messages.
+"context_engine.v1.estimate_tokens" = { wit = "@unicity-astrid/wit/context/estimate-request" }
+# Self-subscription so plugin capsules exporting an interceptor on this
+# topic can be invoked.
 "context_engine.v1.hook.before_compaction" = { wit = "@unicity-astrid/wit/context/before-compaction-hook" }
+# Self-subscription for the after-compaction event.
 "context_engine.v1.hook.after_compaction" = { wit = "@unicity-astrid/wit/context/after-compaction-event" }
+# Per-plugin response topics (genuine fan-out: same schema, many publishers).
 "context_engine.v1.hook_response.*" = { wit = "@unicity-astrid/wit/context/before-compaction-hook-response" }
