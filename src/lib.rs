@@ -213,7 +213,7 @@ impl ContextEngine {
 
         loop {
             // Block until a message arrives (up to 60s), eliminating busy-spin polling.
-            match ipc::recv(&sub, 60_000) {
+            match sub.recv(60_000) {
                 Ok(result) => {
                     dispatch_poll_result(&result, &config);
                 }
@@ -221,14 +221,11 @@ impl ContextEngine {
             }
 
             // Drain hook topics to prevent backpressure.
-            let _ = ipc::poll(&hook_sub);
-            let _ = ipc::poll(&after_sub);
+            let _ = hook_sub.poll();
+            let _ = after_sub.poll();
         }
 
-        let _ = ipc::unsubscribe(&sub);
-        let _ = ipc::unsubscribe(&hook_sub);
-        let _ = ipc::unsubscribe(&after_sub);
-
+        // Subscriptions release automatically on scope exit (Drop).
         Ok(())
     }
 }
@@ -443,7 +440,7 @@ fn fire_before_compaction(
         log::error(format!(
             "Failed to publish context_engine.v1.hook.before_compaction event: {e}"
         ));
-        let _ = ipc::unsubscribe(&sub);
+        // `sub` drops here, releasing the subscription.
         return MergedBeforeCompaction {
             skip: false,
             protected_ids: HashSet::new(),
@@ -464,7 +461,7 @@ fn fire_before_compaction(
         }
         let timeout = u64::try_from(remaining_ms).unwrap_or(u64::MAX);
 
-        match ipc::recv(&sub, timeout) {
+        match sub.recv(timeout) {
             Ok(result) => {
                 responses.extend(parse_hook_responses(&result));
             }
@@ -472,7 +469,7 @@ fn fire_before_compaction(
         }
     }
 
-    let _ = ipc::unsubscribe(&sub);
+    // Subscription drops at scope exit; no manual unsubscribe needed.
 
     if !responses.is_empty() {
         log::info(format!(
