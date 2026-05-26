@@ -41,8 +41,8 @@ Also handles `context_engine.v1.estimate_tokens` for token count estimation.
 ## Development
 
 ```bash
-rustup target add wasm32-wasip2
-cargo build --target wasm32-wasip2 --release
+rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release
 cargo test
 ```
 
