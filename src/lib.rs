@@ -173,6 +173,20 @@ const DEFAULT_HOOK_POLL_TIMEOUT_MS: u64 = 2000;
 /// Maximum number of hook responses to collect.
 const MAX_HOOK_RESPONSES: usize = 50;
 
+/// First-response window (ms) for the before-compaction fan-out. Hook
+/// responders are local pooled capsules (~1ms round-trip), and the
+/// common case is ZERO responders (no compaction plugin), which would
+/// otherwise burn the full `hook_timeout_ms` (2s) on every compaction —
+/// a per-prompt floor that, via react's synchronous compact wait, caps
+/// orchestration throughput (astrid#816). Cap the first-response wait;
+/// `hook_timeout_ms` stays the OUTER cap for multi-responder
+/// accumulation.
+const HOOK_FIRST_RESPONSE_MS: u64 = 250;
+
+/// Idle-grace window (ms) once at least one before-compaction response
+/// has arrived: poll only this long for stragglers, then proceed.
+const HOOK_IDLE_GRACE_MS: u64 = 100;
+
 /// Default number of recent turns to always keep during compaction.
 const DEFAULT_KEEP_RECENT: usize = 10;
 
@@ -478,10 +492,22 @@ fn fire_before_compaction(
         if remaining_ms == 0 {
             break;
         }
-        let timeout = u64::try_from(remaining_ms).unwrap_or(u64::MAX);
+        let remaining = u64::try_from(remaining_ms).unwrap_or(u64::MAX);
+        // Short window for the FIRST response (no-responder backstop);
+        // idle-grace once we have one. Without this, every compaction
+        // burned the full `hook_timeout_ms` because the loop never broke
+        // on the terminal empty PollResult. See HOOK_FIRST_RESPONSE_MS.
+        let timeout = if responses.is_empty() {
+            HOOK_FIRST_RESPONSE_MS.min(remaining)
+        } else {
+            HOOK_IDLE_GRACE_MS.min(remaining)
+        };
 
         match sub.recv(timeout) {
             Ok(result) => {
+                if result.messages.is_empty() {
+                    break;
+                }
                 responses.extend(parse_hook_responses(&result));
             }
             _ => break,
