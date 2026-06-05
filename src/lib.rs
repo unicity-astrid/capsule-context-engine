@@ -140,28 +140,81 @@ struct AfterCompactionPayload {
 
 /// Runtime configuration loaded from capsule config at startup.
 struct Config {
-    /// Maximum time (in milliseconds) to wait for plugin hook responses.
+    /// Maximum time (in milliseconds) to wait for plugin hook responses — the
+    /// OUTER cap for the multi-responder accumulation case.
     hook_timeout_ms: u64,
+    /// First-response window (ms): how long to wait for the FIRST hook response
+    /// before proceeding with compaction. Defaults to [`HOOK_FIRST_RESPONSE_MS`];
+    /// an operator with a genuinely slow compaction plugin can raise it (per
+    /// principal) so its response isn't silently excluded.
+    hook_first_response_ms: u64,
+    /// Idle-grace window (ms) once at least one response has arrived. Defaults to
+    /// [`HOOK_IDLE_GRACE_MS`].
+    hook_idle_grace_ms: u64,
     /// Number of recent turns to always keep during compaction.
     keep_recent: usize,
 }
 
 impl Config {
+    /// Load configuration from the capsule's config store, falling back to
+    /// defaults.
+    ///
+    /// Read per invocation, **not** cached: `env::var` resolves the
+    /// per-invocation, per-principal env overlay, so a global cache would pin
+    /// one principal's tuning for every principal.
     fn load() -> Self {
-        let hook_timeout_ms = env::var("hook_timeout_ms")
-            .ok()
-            .and_then(|s| s.trim().trim_matches('"').parse::<u64>().ok())
-            .unwrap_or(DEFAULT_HOOK_POLL_TIMEOUT_MS);
-
         let keep_recent = env::var("keep_recent")
             .ok()
             .and_then(|s| s.trim().trim_matches('"').parse::<usize>().ok())
             .unwrap_or(DEFAULT_KEEP_RECENT);
 
         Self {
-            hook_timeout_ms,
+            hook_timeout_ms: env_u64("hook_timeout_ms", DEFAULT_HOOK_POLL_TIMEOUT_MS),
+            hook_first_response_ms: env_u64("hook_first_response_ms", HOOK_FIRST_RESPONSE_MS),
+            hook_idle_grace_ms: env_u64("hook_idle_grace_ms", HOOK_IDLE_GRACE_MS),
             keep_recent,
         }
+    }
+}
+
+/// Read a `u64` capsule config value from `env`, falling back to `default` when
+/// the key is missing or unparseable. Trims surrounding whitespace and quotes.
+fn env_u64(key: &str, default: u64) -> u64 {
+    env::var(key)
+        .ok()
+        .and_then(|s| s.trim().trim_matches('"').parse::<u64>().ok())
+        .unwrap_or(default)
+}
+
+/// Pick the `recv` timeout (ms) for the next before-compaction hook poll, or
+/// `None` when the fan-out loop should stop. Pure (no I/O) so the timing / exit
+/// logic is unit-testable.
+///
+/// While waiting for the FIRST response the window is bounded to
+/// `first_response_ms` measured from the START of the loop (via `elapsed_ms`),
+/// **not** reset per poll — so a stream of non-matching polls can't extend it;
+/// returns `None` once that window is spent with no response (the no-responder
+/// backstop). Once a response has arrived a short `idle_grace_ms` applies. Every
+/// window is also clamped to `remaining_ms` (the outer `hook_timeout_ms` cap),
+/// and `remaining_ms == 0` stops the loop.
+fn hook_recv_timeout(
+    have_response: bool,
+    elapsed_ms: u64,
+    remaining_ms: u64,
+    first_response_ms: u64,
+    idle_grace_ms: u64,
+) -> Option<u64> {
+    if remaining_ms == 0 {
+        return None;
+    }
+    if have_response {
+        return Some(idle_grace_ms.min(remaining_ms));
+    }
+    let first_remaining = first_response_ms.saturating_sub(elapsed_ms);
+    if first_remaining == 0 {
+        None
+    } else {
+        Some(first_remaining.min(remaining_ms))
     }
 }
 
@@ -488,19 +541,20 @@ fn fire_before_compaction(
         && responses.len() < MAX_HOOK_RESPONSES
     {
         let elapsed = astrid_sdk::time::monotonic().saturating_sub(start);
-        let remaining_ms = timeout_dur.saturating_sub(elapsed).as_millis();
-        if remaining_ms == 0 {
+        let elapsed_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+        let remaining_ms =
+            u64::try_from(timeout_dur.saturating_sub(elapsed).as_millis()).unwrap_or(u64::MAX);
+        // Short window for the FIRST response (no-responder backstop), bounded
+        // from the loop START; idle-grace once we have one; `None` stops the
+        // loop (window spent / outer cap reached). See `hook_recv_timeout`.
+        let Some(timeout) = hook_recv_timeout(
+            !responses.is_empty(),
+            elapsed_ms,
+            remaining_ms,
+            config.hook_first_response_ms,
+            config.hook_idle_grace_ms,
+        ) else {
             break;
-        }
-        let remaining = u64::try_from(remaining_ms).unwrap_or(u64::MAX);
-        // Short window for the FIRST response (no-responder backstop);
-        // idle-grace once we have one. Without this, every compaction
-        // burned the full `hook_timeout_ms` because the loop never broke
-        // on the terminal empty PollResult. See HOOK_FIRST_RESPONSE_MS.
-        let timeout = if responses.is_empty() {
-            HOOK_FIRST_RESPONSE_MS.min(remaining)
-        } else {
-            HOOK_IDLE_GRACE_MS.min(remaining)
         };
 
         match sub.recv(timeout) {
